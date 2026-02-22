@@ -52,6 +52,38 @@ export const ENEMY_CONFIG = {
     movePattern: 'chase' as const,
     points: 250,
   },
+  subboss_light: {
+    width: 80,
+    height: 80,
+    health: 25,
+    fireRate: 0.8,
+    movePattern: 'aggressive' as const,
+    points: 1500,
+  },
+  subboss_heavy: {
+    width: 100,
+    height: 100,
+    health: 50,
+    fireRate: 1.2,
+    movePattern: 'defensive' as const,
+    points: 3000,
+  },
+  minion_fighter: {
+    width: 35,
+    height: 35,
+    health: 8,
+    fireRate: 1.0,
+    movePattern: 'sine' as const,
+    points: 200,
+  },
+  minion_bomber: {
+    width: 40,
+    height: 40,
+    health: 10,
+    fireRate: 1.5,
+    movePattern: 'straight' as const,
+    points: 250,
+  },
 };
 
 export const POWERUP_CONFIG = {

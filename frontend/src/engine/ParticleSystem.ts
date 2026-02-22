@@ -11,7 +11,7 @@ export interface Particle {
   size: number;
   color: number;
   alpha: number;
-  type: 'explosion' | 'smoke' | 'spark' | 'debris' | 'trail' | 'engine';
+  type: 'explosion' | 'smoke' | 'spark' | 'debris' | 'trail' | 'engine' | 'hit' | 'speed';
   rotation: number;
   rotationSpeed: number;
   gravity: number;
@@ -156,6 +156,59 @@ export class ParticleSystem {
     }
   }
   
+  createHitParticles(x: number, y: number, color: number = 0xffaa00, count = 8): void {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 80 + Math.random() * 120;
+      
+      this.addParticle({
+        id: `hit_${this.nextId++}`,
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.15 + Math.random() * 0.15,
+        maxLife: 0.3,
+        size: 2 + Math.random() * 3,
+        color,
+        alpha: 1,
+        type: 'hit',
+        rotation: 0,
+        rotationSpeed: 0,
+        gravity: 50,
+        friction: 0.92,
+        scale: 1,
+        scaleDecay: 0.9,
+        active: true,
+      });
+    }
+  }
+  
+  createSpeedParticles(x: number, y: number, count: number = 3): void {
+    for (let i = 0; i < count; i++) {
+      this.addParticle({
+        id: `speed_${this.nextId++}`,
+        x: x + (Math.random() - 0.5) * 100,
+        y: y,
+        vx: 0,
+        vy: 800 + Math.random() * 400,
+        life: 0.1 + Math.random() * 0.1,
+        maxLife: 0.2,
+        size: 1 + Math.random() * 2,
+        color: 0xffffff,
+        alpha: 0.6,
+        type: 'speed',
+        rotation: 0,
+        rotationSpeed: 0,
+        gravity: 0,
+        friction: 1,
+        scale: 1,
+        scaleDecay: 0.95,
+        active: true,
+      });
+    }
+  }
+
   createEngineTrail(x: number, y: number, color: number = 0x00aaff): void {
     this.addParticle({
       id: `trail_${this.nextId++}`,
@@ -211,7 +264,7 @@ export class ParticleSystem {
       particle.rotation += particle.rotationSpeed * delta;
       
       const lifeRatio = particle.life / particle.maxLife;
-      particle.alpha = lifeRatio * (particle.type === 'smoke' ? 0.3 : 0.8);
+      particle.alpha = lifeRatio * (particle.type === 'smoke' ? 0.3 : particle.type === 'speed' ? 0.5 : 0.8);
       particle.scale *= particle.scaleDecay;
       
       const graphic = this.graphics.get(particle.id);
@@ -239,6 +292,12 @@ export class ParticleSystem {
             break;
           case 'trail':
             this.drawTrailParticle(graphic, size, particle.color);
+            break;
+          case 'hit':
+            this.drawHitParticle(graphic, size, particle.color, lifeRatio);
+            break;
+          case 'speed':
+            this.drawSpeedParticle(graphic, size);
             break;
         }
       }
@@ -299,6 +358,20 @@ export class ParticleSystem {
     
     graphic.ellipse(0, 0, size * 0.3, size * 0.6);
     graphic.fill({ color: 0xffffff, alpha: 0.4 });
+  }
+  
+  private drawHitParticle(graphic: Graphics, size: number, color: number, lifeRatio: number): void {
+    graphic.circle(0, 0, size);
+    graphic.fill({ color, alpha: lifeRatio * 0.9 });
+    
+    graphic.circle(0, 0, size * 0.5);
+    graphic.fill({ color: 0xffffff, alpha: lifeRatio * 0.6 });
+  }
+  
+  private drawSpeedParticle(graphic: Graphics, size: number): void {
+    graphic.moveTo(0, -size * 4);
+    graphic.lineTo(0, size * 4);
+    graphic.stroke({ color: 0xffffff, width: size * 0.5, alpha: 0.7 });
   }
 
   private variateColor(color: number): number {

@@ -2,7 +2,6 @@ import { Application, Container, Graphics } from 'pixi.js';
 import { GameEngine } from './GameEngine';
 import { ParticleSystem } from './ParticleSystem';
 import { ParallaxBackground } from './ParallaxBackground';
-import { DebrisSystem } from './DebrisSystem';
 import { GAME_WIDTH, GAME_HEIGHT } from './constants';
 
 interface GameCanvasProps {
@@ -20,23 +19,6 @@ export default class GameCanvas {
   private onBossWarning: GameCanvasProps['onBossWarning'];
   private onGameOver: GameCanvasProps['onGameOver'];
   private onVictory: GameCanvasProps['onVictory'];
-  private onEffect = (type: string, x: number, y: number, data?: unknown): void => {
-    if (!this.particleSystem || !this.debrisSystem) return;
-    const d = (data || {}) as Record<string, unknown>;
-    switch (type) {
-      case "explosion": {
-        const t = String(d["type"] || "medium");
-        this.createExplosion(x, y, t as "small" | "medium" | "large" | "boss");
-        break;
-      }
-      case "hit":
-        this.createHitParticles(x, y, Number(d["color"] || 0xffff00));
-        break;
-      case "bombFlash":
-        this.createFlash(Number(d["alpha"] || 0.8));
-        break;
-    }
-  };
   
   private gameContainer: Container | null = null;
   private backgroundContainer: Container | null = null;
@@ -52,9 +34,6 @@ export default class GameCanvas {
   private particleSystem: ParticleSystem | null = null;
   private parallaxBackground: ParallaxBackground | null = null;
   private backgroundShipsGraphic: Graphics | null = null;
-  private debrisSystem: DebrisSystem | null = null;
-  private flashGraphic: Graphics | null = null;
-  private flashAlpha: number = 0;
   
   private lastFrameTime: number = 0;
   private initialized: boolean = false;
@@ -125,16 +104,11 @@ export default class GameCanvas {
     this.backgroundContainer.addChild(this.backgroundShipsGraphic);
 
     this.particleSystem = new ParticleSystem(this.particleContainer);
-    this.debrisSystem = new DebrisSystem(this.particleContainer);
-    
-    this.flashGraphic = new Graphics();
-    this.gameContainer.addChild(this.flashGraphic);
 
     this.engine = new GameEngine({
       onBossWarning: this.onBossWarning,
       onGameOver: this.onGameOver,
       onVictory: this.onVictory,
-      onEffect: this.onEffect,
     });
 
     this.engine.init();
@@ -165,12 +139,6 @@ export default class GameCanvas {
     if (this.particleSystem) {
       this.particleSystem.update(delta);
     }
-    
-    if (this.debrisSystem) {
-      this.debrisSystem.update(delta);
-    }
-    
-    this.updateFlash(delta);
     
     this.render();
     
@@ -217,7 +185,6 @@ export default class GameCanvas {
     }
 
     this.drawPlayerShip(this.playerGraphic, player.x, player.y, player.weaponLevel);
-    this.playerGraphic.rotation = player.tiltAngle;
     
     if (this.particleSystem && Math.random() > 0.5) {
       this.particleSystem.createEngineTrail(
@@ -574,29 +541,6 @@ export default class GameCanvas {
         graphic.lineTo(3, 25 + Math.sin(time * 15) * 5);
         graphic.stroke({ color: 0xffaa00, width: 2 });
         break;
-      
-      case "minion_fighter":
-        // Minion fighter - small fast ship
-        graphic.moveTo(0, -15);
-        graphic.lineTo(-12, 12);
-        graphic.lineTo(0, 8);
-        graphic.lineTo(12, 12);
-        graphic.closePath();
-        graphic.fill({ color: 0xff4444 });
-        graphic.stroke({ color: 0xffaaaa, width: 1 });
-        graphic.circle(0, 0, 4 * pulse);
-        graphic.fill({ color: 0xffffff, alpha: 0.8 });
-        break;
-        
-      case "minion_bomber":
-        // Minion bomber - round bomber
-        graphic.circle(0, 0, 18);
-        graphic.fill({ color: 0xaa3333 });
-        graphic.stroke({ color: 0xff6666, width: 2 });
-        graphic.circle(0, 5, 6);
-        graphic.fill({ color: 0xff8800, alpha: pulse });
-        break;
-        break;
     }
   }
 
@@ -714,10 +658,6 @@ export default class GameCanvas {
     this.bossGraphic.visible = true;
 
     this.drawBoss(this.bossGraphic, boss, this.bossTime);
-    this.bossGraphic.rotation = boss.tiltAngle;
-    if (boss.shieldActive) {
-      this.drawBossShield(boss);
-    }
     
     if (this.particleSystem && Math.random() > 0.7) {
       const offsetX = (Math.random() - 0.5) * boss.width * 0.8;
@@ -832,23 +772,6 @@ export default class GameCanvas {
       graphic.fill({ color: colors.accent, alpha: 0.6 });
     }
   }
-  private bossShieldGraphic: Graphics | null = null;
-  private drawBossShield(boss: any): void {
-    if (!this.entityContainer) return;
-    if (!this.bossShieldGraphic) {
-      this.bossShieldGraphic = new Graphics();
-      this.entityContainer.addChild(this.bossShieldGraphic);
-    }
-    const shield = this.bossShieldGraphic;
-    shield.clear();
-    shield.x = boss.x;
-    shield.y = boss.y;
-    const shieldAlpha = boss.shieldHealth / boss.shieldMaxHealth;
-    shield.circle(0, 0, boss.width / 2 + 20);
-    shield.stroke({ color: 0x00ffff, alpha: shieldAlpha * 0.6, width: 4 });
-    shield.circle(0, 0, boss.width / 2 + 15);
-    shield.stroke({ color: 0x00aaff, alpha: shieldAlpha * 0.4, width: 2 });
-  }
 
   private renderPowerups(): void {
     if (!this.entityContainer || !this.engine) return;
@@ -954,33 +877,6 @@ export default class GameCanvas {
     this.particleSystem.createSmoke(x, y, 3);
   }
 
-  createFlash(alpha: number = 0.8): void {
-    this.flashAlpha = alpha;
-  }
-  
-  createHitParticles(x: number, y: number, color: number = 0xffff00): void {
-    if (!this.particleSystem) return;
-    this.particleSystem.createHitParticles(x, y, color);
-  }
-  
-  createWreck(x: number, y: number, size: number = 20, color: number = 0x666666): void {
-    if (!this.debrisSystem) return;
-    this.debrisSystem.createWreck({ x, y, size, color, pieceCount: 5 });
-  }
-  
-  private updateFlash(delta: number): void {
-    if (!this.flashGraphic) return;
-    
-    if (this.flashAlpha > 0) {
-      this.flashGraphic.clear();
-      this.flashGraphic.rect(0, 0, 1200, 900);
-      this.flashGraphic.fill({ color: 0xffffff, alpha: this.flashAlpha });
-      this.flashAlpha = Math.max(0, this.flashAlpha - delta * 4);
-    } else {
-      this.flashGraphic.clear();
-    }
-  }
-  
   private setupInput(): void {
     const keyMap: Record<string, keyof import('./types').InputState> = {
       'KeyW': 'up', 'ArrowUp': 'up',
@@ -1032,11 +928,6 @@ export default class GameCanvas {
     if (this.parallaxBackground) {
       this.parallaxBackground.destroy();
       this.parallaxBackground = null;
-    }
-    
-    if (this.debrisSystem) {
-      this.debrisSystem.destroy();
-      this.debrisSystem = null;
     }
     
     this.engine = null;

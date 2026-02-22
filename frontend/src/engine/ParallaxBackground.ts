@@ -105,6 +105,25 @@ export class ParallaxBackground {
         this.createDebris(layer, alpha);
         break;
       case 1:
+        // Speed streaks for motion blur effect
+        for (let i = 0; i < 15; i++) {
+          const graphic = new Graphics();
+          const x = Math.random() * this.gameWidth;
+          const y = Math.random() * this.gameHeight;
+          const length = 80 + Math.random() * 120;
+          graphic.moveTo(0, -length / 2);
+          graphic.lineTo(0, length / 2);
+          graphic.stroke({ color: 0xffffff, alpha: 0.2 + Math.random() * 0.1, width: 1 + Math.random() });
+          graphic.x = x;
+          graphic.y = y;
+          layer.container.addChild(graphic);
+          layer.elements.push({
+            graphic, x, y,
+            width: 2, height: length,
+            type: 'star' as const,
+            speed: 1000 + Math.random() * 500,
+          });
+        }
         break;
     }
   }
@@ -375,7 +394,9 @@ export class ParallaxBackground {
   update(delta: number, _phase: number): void {
     for (const layer of this.layers) {
       for (const element of layer.elements) {
-        element.y += layer.speed * delta;
+        let elemSpeed = layer.speed;
+        if (element.speed) elemSpeed = element.speed;
+        element.y += elemSpeed * delta;
         
         if (element.data?.rotationSpeed) {
           element.graphic.rotation += element.data.rotationSpeed * delta;

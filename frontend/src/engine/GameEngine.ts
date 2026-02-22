@@ -28,6 +28,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 
 interface GameEngineCallbacks {
+  onEffect?: (type: string, x: number, y: number, data?: unknown) => void;
   onBossWarning: () => void;
   onGameOver: (result: GameResult) => void;
   onVictory: (result: GameResult) => void;
@@ -53,6 +54,7 @@ export class GameEngine {
   private bossSpawned: boolean = false;
   
   private gameTime: number = 0;
+  private randomSpawnTimer: number = 0;
   private initialized: boolean = false;
   
   private bulletPool: Bullet[] = [];
@@ -79,6 +81,8 @@ export class GameEngine {
       invulnerable: false,
       invulnerableTimer: 0,
       fireTimer: 0,
+      tiltAngle: 0,
+      targetTilt: 0,
     };
   }
 
@@ -99,6 +103,10 @@ export class GameEngine {
       hitsReceived: 0,
       enemiesDestroyed: 0,
       bossDamageDealt: 0,
+      currentWave: 0,
+      waitingForClear: false,
+      bombFlashActive: false,
+      bombFlashTimer: 0,
     };
   }
 
@@ -174,6 +182,7 @@ export class GameEngine {
       this.damageBoss(100);
     }
     
+    this.callbacks.onEffect?.("bombFlash", 0, 0, { alpha: 0.8 });
     this.gameState.score += 500;
   }
 
@@ -211,6 +220,7 @@ export class GameEngine {
 
     this.player.x += dx * PLAYER_SPEED * delta;
     this.player.y += dy * PLAYER_SPEED * delta;
+// Track tilt angle based on horizontal movement    this.player.targetTilt = dx * 0.3;    this.player.tiltAngle += (this.player.targetTilt - this.player.tiltAngle) * 5 * delta;
 
     const halfWidth = this.player.width / 2;
     const halfHeight = this.player.height / 2;
@@ -321,11 +331,13 @@ export class GameEngine {
         case 'sine':
           enemy.y += 60 * delta;
           enemy.x = enemy.baseX + Math.sin(enemy.moveTimer * 3) * 50;
+          enemy.tiltAngle = Math.cos(enemy.moveTimer * 3) * 0.2;
           break;
         case 'chase':
           const dx = this.player.x - enemy.x;
           const dy = this.player.y - enemy.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
+          enemy.tiltAngle = Math.atan2(0, (dx / dist)) * 0.5;
           if (dist > 0) {
             enemy.x += (dx / dist) * 120 * delta;
             enemy.y += (dy / dist) * 120 * delta;
@@ -343,6 +355,7 @@ export class GameEngine {
 
       if (enemy.y > GAME_HEIGHT + 50) {
         enemy.active = false;
+    this.callbacks.onEffect?.("explosion", enemy.x, enemy.y, { type: enemy.isSubBoss ? "large" : "medium" });
       }
     }
   }
@@ -382,6 +395,21 @@ export class GameEngine {
     this.boss.moveTimer += delta;
 
     this.boss.x += Math.sin(this.boss.moveTimer * 1.5) * 100 * delta * this.boss.moveDirection;
+    this.boss.tiltAngle = Math.sin(this.boss.moveTimer * 1.5) * 0.1;
+    const healthPercent = this.boss.health / this.boss.maxHealth;
+    
+    // Phase 2: Activate shield at 50% health
+    if (this.boss.phase === 2 && !this.boss.shieldActive && healthPercent < 0.5) {
+      this.boss.shieldActive = true;
+      this.boss.shieldHealth = 50;
+      this.boss.shieldMaxHealth = 50;
+    }
+    
+    // Phase 3: Spawn minions
+    if (this.boss.phase === 3 && !this.boss.minionsActive) {
+      this.boss.minionsActive = true;
+      this.spawnBossMinions();
+    }
     
     this.boss.x = Math.max(this.boss.width / 2, Math.min(GAME_WIDTH - this.boss.width / 2, this.boss.x));
 
@@ -392,7 +420,6 @@ export class GameEngine {
       this.boss.attackTimer = 0;
     }
 
-    const healthPercent = this.boss.health / this.boss.maxHealth;
     const newPhase: BossPhase = healthPercent > 0.66 ? 1 : healthPercent > 0.33 ? 2 : 3;
     
     if (newPhase !== this.boss.phase) {
@@ -514,6 +541,7 @@ export class GameEngine {
         
         if (dist < enemy.width / 2) {
           enemy.health -= bullet.damage;
+          this.callbacks.onEffect?.("hit", bullet.x, bullet.y, { color: 0xffff00 });
           bullet.active = false;
           
           if (enemy.health <= 0) {
@@ -529,6 +557,12 @@ export class GameEngine {
         );
         
         if (dist < this.boss.width / 2) {
+        if (this.boss.shieldActive && this.boss.shieldHealth > 0) {
+          this.boss.shieldHealth -= bullet.damage;
+          if (this.boss.shieldHealth <= 0) this.boss.shieldActive = false;
+          bullet.active = false;
+          return;
+        }
           this.damageBoss(bullet.damage);
           bullet.active = false;
         }
@@ -588,6 +622,7 @@ export class GameEngine {
     if (!this.boss) return;
     
     this.boss.health -= damage;
+    this.callbacks.onEffect?.("hit", this.boss.x, this.boss.y, { color: 0xff6600 });
     this.gameState.bossDamageDealt += damage;
     this.gameState.score += damage;
     
@@ -598,6 +633,7 @@ export class GameEngine {
 
   private destroyEnemy(enemy: Enemy): void {
     enemy.active = false;
+    this.callbacks.onEffect?.("explosion", enemy.x, enemy.y, { type: enemy.isSubBoss ? "large" : "medium" });
     this.gameState.enemiesDestroyed++;
     this.gameState.score += enemy.points;
     
@@ -650,9 +686,16 @@ export class GameEngine {
 
   private manageWaves(delta: number): void {
     this.waveTimer += delta;
+    this.randomSpawnTimer += delta;
+    if (this.randomSpawnTimer > 8) {
+      this.randomSpawnTimer = 0;
+      if (Math.random() < 0.3) {
+        this.spawnPowerup(Math.random() * GAME_WIDTH, -20);
+      }
+    }
     
     const phase = this.gameState.phase;
-    const enemiesForBoss = 15 + phase * 5;
+    const enemiesForBoss = 30 + phase * 10;
     const totalEnemiesDestroyed = this.gameState.enemiesDestroyed;
     
     if (!this.bossSpawned && totalEnemiesDestroyed >= enemiesForBoss) {
@@ -707,6 +750,8 @@ export class GameEngine {
       moveTimer: 0,
       baseX: 50 + Math.random() * (GAME_WIDTH - 100),
       points: config.points,
+      tiltAngle: 0,
+      targetTilt: 0,
     };
     
     enemy.baseX = enemy.x;
@@ -732,6 +777,15 @@ export class GameEngine {
       attackPattern: 0,
       moveTimer: 0,
       moveDirection: 1,
+      mechanics: [],
+      minionsActive: false,
+      shieldActive: false,
+      shieldHealth: 0,
+      shieldMaxHealth: 0,
+      vulnerabilityTimer: 0,
+      minionSpawnTimer: 0,
+      tiltAngle: 0,
+      targetTilt: 0,
     };
     
     this.bossSpawned = true;
@@ -745,10 +799,40 @@ export class GameEngine {
     moveIn();
   }
 
+  private spawnBossMinions(): void {
+    if (!this.boss) return;
+    for (let i = 0; i < 3; i++) {
+      const config = i % 2 === 0 ? ENEMY_CONFIG["minion_fighter"] : ENEMY_CONFIG["minion_bomber"];
+      const minion: Enemy = {
+        id: uuidv4(),
+        x: this.boss.x + (i - 1) * 60,
+        y: this.boss.y + 80,
+        width: config.width,
+        height: config.height,
+        active: true,
+        type: i % 2 === 0 ? "minion_fighter" : "minion_bomber",
+        health: config.health,
+        maxHealth: config.health,
+        fireRate: config.fireRate,
+        fireTimer: 0,
+        movePattern: config.movePattern,
+        moveTimer: 0,
+        baseX: this.boss.x + (i - 1) * 60,
+        points: config.points,
+        tiltAngle: 0,
+        targetTilt: 0,
+        isMinion: true,
+        parentBossId: this.boss.id,
+      };
+      this.enemies.push(minion);
+    }
+  }
+
   private defeatBoss(): void {
     if (!this.boss) return;
     
     this.boss.active = false;
+    this.callbacks.onEffect?.("explosion", this.boss.x, this.boss.y, { type: "boss" });
     this.gameState.score += 10000 * this.gameState.phase;
     
     if (this.gameState.phase >= 3) {

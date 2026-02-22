@@ -20,6 +20,8 @@ export interface Player extends Entity {
   invulnerable: boolean;
   invulnerableTimer: number;
   fireTimer: number;
+  tiltAngle: number;
+  targetTilt: number;
 }
 
 export interface Bullet extends Entity {
@@ -29,7 +31,7 @@ export interface Bullet extends Entity {
   damage: number;
 }
 
-export type EnemyType = 'A' | 'B' | 'C' | 'D' | 'E';
+export type EnemyType = 'A' | 'B' | 'C' | 'D' | 'E' | 'subboss_light' | 'subboss_heavy' | 'minion_fighter' | 'minion_bomber';
 
 export interface Enemy extends Entity {
   type: EnemyType;
@@ -37,13 +39,18 @@ export interface Enemy extends Entity {
   maxHealth: number;
   fireTimer: number;
   fireRate: number;
-  movePattern: 'straight' | 'zigzag' | 'sine' | 'chase' | 'stationary';
+  movePattern: 'straight' | 'zigzag' | 'sine' | 'chase' | 'stationary' | 'aggressive' | 'defensive' | 'erratic';
   moveTimer: number;
   baseX: number;
   points: number;
+  tiltAngle: number;
+  targetTilt: number;
+  isSubBoss?: boolean;
+  isMinion?: boolean;
+  parentBossId?: string;
 }
 
-export type BossPhase = 1 | 2 | 3;
+export type BossPhase = 1 | 2 | 3 | 4;
 
 export interface Boss extends Entity {
   name: string;
@@ -54,6 +61,15 @@ export interface Boss extends Entity {
   attackPattern: number;
   moveTimer: number;
   moveDirection: number;
+  mechanics: ('minions' | 'shield' | 'cannons')[];
+  minionsActive: boolean;
+  shieldActive: boolean;
+  shieldHealth: number;
+  shieldMaxHealth: number;
+  vulnerabilityTimer: number;
+  minionSpawnTimer: number;
+  tiltAngle: number;
+  targetTilt: number;
 }
 
 export type PowerUpType = 'weapon' | 'shield' | 'bomb' | 'heal' | 'score';
@@ -88,6 +104,10 @@ export interface GameState {
   hitsReceived: number;
   enemiesDestroyed: number;
   bossDamageDealt: number;
+  currentWave: number;
+  waitingForClear: boolean;
+  bombFlashActive: boolean;
+  bombFlashTimer: number;
 }
 
 export interface GameResult {
