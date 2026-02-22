@@ -1,0 +1,263 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+body { background: #000; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+.game-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-canvas-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.game-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  z-index: 100;
+}
+
+.game-title {
+  font-size: 48px;
+  font-weight: bold;
+  color: #00ffff;
+  text-shadow: 0 0 20px #00ffff;
+  margin-bottom: 20px;
+}
+
+.btn {
+  padding: 15px 40px;
+  font-size: 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin: 10px;
+}
+
+.btn-primary {
+  background: #00ffff;
+  color: #000;
+}
+
+.btn-primary:hover {
+  background: #00cccc;
+  transform: scale(1.05);
+}
+
+.btn-secondary {
+  background: #333;
+  color: #fff;
+  border: 2px solid #00ffff;
+}
+
+.btn-secondary:hover {
+  background: #444;
+}
+
+.hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 10px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+  z-index: 50;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.hud-left, .hud-right, .hud-center {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.hud-center {
+  align-items: center;
+}
+
+.hud-right {
+  align-items: flex-end;
+}
+
+.hud-item {
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-icon {
+  font-size: 20px;
+}
+
+.health-bar {
+  width: 150px;
+  height: 20px;
+  background: #333;
+  border: 2px solid #ff0000;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.health-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff0000, #ff6600);
+  transition: width 0.3s;
+}
+
+.weapon-indicator {
+  display: flex;
+  gap: 5px;
+}
+
+.weapon-level {
+  width: 20px;
+  height: 20px;
+  background: #333;
+  border: 2px solid #00ffff;
+  border-radius: 4px;
+}
+
+.weapon-level.active {
+  background: #00ffff;
+}
+
+.boss-health-bar {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  max-width: 600px;
+  z-index: 50;
+}
+
+.boss-name {
+  text-align: center;
+  font-size: 24px;
+  color: #ff0000;
+  text-shadow: 0 0 10px #ff0000;
+  margin-bottom: 5px;
+}
+
+.boss-health-bar-inner {
+  height: 25px;
+  background: #333;
+  border: 3px solid #ff0000;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.boss-health-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff0000, #ff6600, #ffff00);
+  transition: width 0.2s;
+}
+
+.form-group {
+  margin-bottom: 15px;
+  width: 100%;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 5px;
+  color: #aaa;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 15px;
+  font-size: 16px;
+  border: 2px solid #333;
+  border-radius: 8px;
+  background: #222;
+  color: white;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #00ffff;
+}
+
+.screen-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #000 0%, #0a0a2e 50%, #000 100%);
+  padding: 20px;
+}
+
+.leaderboard-table {
+  width: 100%;
+  max-width: 600px;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.leaderboard-table th,
+.leaderboard-table td {
+  padding: 10px 15px;
+  text-align: left;
+  border-bottom: 1px solid #333;
+}
+
+.leaderboard-table th {
+  color: #00ffff;
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.leaderboard-table td {
+  color: white;
+}
+
+.leaderboard-table tr:nth-child(1) td { color: #ffd700; }
+.leaderboard-table tr:nth-child(2) td { color: #c0c0c0; }
+.leaderboard-table tr:nth-child(3) td { color: #cd7f32; }
+
+.warning-text {
+  font-size: 36px;
+  color: #ff0000;
+  text-shadow: 0 0 20px #ff0000;
+  animation: pulse 0.5s infinite alternate;
+}
+
+@keyframes pulse {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}
+
+.game-over-title {
+  font-size: 56px;
+  color: #ff0000;
+  text-shadow: 0 0 30px #ff0000;
+}
+
+.victory-title {
+  font-size: 56px;
+  color: #00ff00;
+  text-shadow: 0 0 30px #00ff00;
+}
