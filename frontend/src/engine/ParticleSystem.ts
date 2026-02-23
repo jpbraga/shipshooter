@@ -156,7 +156,7 @@ export class ParticleSystem {
     }
   }
   
-  createHitParticles(x: number, y: number, color: number = 0xffaa00, count = 8): void {
+  createHitParticles(x: number, y: number, color: number = 0xffaa00, count = 15): void {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 80 + Math.random() * 120;
@@ -167,7 +167,7 @@ export class ParticleSystem {
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        life: 0.15 + Math.random() * 0.15,
+        life: 0.2 + Math.random() * 0.2,
         maxLife: 0.3,
         size: 2 + Math.random() * 3,
         color,

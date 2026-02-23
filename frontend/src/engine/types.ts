@@ -20,7 +20,12 @@ export interface Player extends Entity {
   invulnerable: boolean;
   invulnerableTimer: number;
   fireTimer: number;
+  missileFireTimer: number;
   tiltAngle: number;
+  isCharging: boolean;
+  chargeTimer: number;
+  chargeTargetX: number;
+  chargeTargetY: number;
   targetTilt: number;
 }
 
@@ -29,6 +34,9 @@ export interface Bullet extends Entity {
   velocityY: number;
   isPlayerBullet: boolean;
   damage: number;
+  isHoming?: boolean;
+  targetId?: string;
+  trail?: Array<{x: number; y: number; alpha: number}>;
 }
 
 export type EnemyType = 'A' | 'B' | 'C' | 'D' | 'E' | 'subboss_light' | 'subboss_heavy' | 'minion_fighter' | 'minion_bomber';
@@ -44,6 +52,10 @@ export interface Enemy extends Entity {
   baseX: number;
   points: number;
   tiltAngle: number;
+  isCharging: boolean;
+  chargeTimer: number;
+  chargeTargetX: number;
+  chargeTargetY: number;
   targetTilt: number;
   isSubBoss?: boolean;
   isMinion?: boolean;
@@ -67,8 +79,13 @@ export interface Boss extends Entity {
   shieldHealth: number;
   shieldMaxHealth: number;
   vulnerabilityTimer: number;
+  shieldCooldownTimer: number;
   minionSpawnTimer: number;
   tiltAngle: number;
+  isCharging: boolean;
+  chargeTimer: number;
+  chargeTargetX: number;
+  chargeTargetY: number;
   targetTilt: number;
 }
 

@@ -81,8 +81,13 @@ export class GameEngine {
       invulnerable: false,
       invulnerableTimer: 0,
       fireTimer: 0,
+      missileFireTimer: 0,
       tiltAngle: 0,
       targetTilt: 0,
+      isCharging: false,
+      chargeTimer: 0,
+      chargeTargetX: 0,
+      chargeTargetY: 0,
     };
   }
 
@@ -235,6 +240,9 @@ export class GameEngine {
     }
 
     this.player.fireTimer -= delta;
+    if (this.player.missileFireTimer > 0) {
+      this.player.missileFireTimer -= delta;
+    }
     if (this.player.fireTimer <= 0) {
       this.firePlayerBullets();
       this.player.fireTimer = PLAYER_FIRE_RATE;
@@ -268,7 +276,55 @@ export class GameEngine {
         this.createPlayerBullet(this.player.x - 25, this.player.y, -100, -BULLET_SPEED_PLAYER * 0.8);
         this.createPlayerBullet(this.player.x + 25, this.player.y, 100, -BULLET_SPEED_PLAYER * 0.8);
         break;
+      case 5:
+        this.createPlayerBullet(this.player.x, this.player.y - 20, 0, -BULLET_SPEED_PLAYER);
+        this.createPlayerBullet(this.player.x - 12, this.player.y - 15, 0, -BULLET_SPEED_PLAYER);
+        this.createPlayerBullet(this.player.x + 12, this.player.y - 15, 0, -BULLET_SPEED_PLAYER);
+        if (this.player.missileFireTimer <= 0) {
+          this.createHomingMissile(this.player.x, this.player.y - 30);
+          this.player.missileFireTimer = 3; // 3 seconds cooldown
+        }
+        break;
+        break;
     }
+  }
+
+  private createHomingMissile(x: number, y: number): void {
+    const target = this.findNearestEnemy(x, y);
+    const bullet = this.getBulletFromPool(true);
+    if (!bullet) return;
+    
+    bullet.x = x;
+    bullet.y = y;
+    bullet.velocityX = 0;
+    bullet.velocityY = -200;
+    bullet.isPlayerBullet = true;
+    bullet.damage = 5;
+    bullet.isHoming = true;
+    bullet.targetId = target?.id;
+    bullet.width = 12;
+    bullet.height = 20;
+    bullet.trail = [];
+    
+    if (!this.bullets.includes(bullet)) {
+      this.bullets.push(bullet);
+    }
+  }
+
+  private findNearestEnemy(x: number, y: number): Enemy | null {
+    let nearest: Enemy | null = null;
+    let nearestDist = Infinity;
+    
+    for (const enemy of this.enemies) {
+      if (!enemy.active) continue;
+      const dist = Math.sqrt((enemy.x - x) ** 2 + (enemy.y - y) ** 2);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = enemy;
+      }
+    }
+    
+    return nearest;
   }
 
   private createPlayerBullet(x: number, y: number, vx: number, vy: number): void {
@@ -309,6 +365,42 @@ export class GameEngine {
       
       bullet.x += bullet.velocityX * delta;
       bullet.y += bullet.velocityY * delta;
+        
+        // Homing missile logic
+        if (bullet.isHoming && bullet.isPlayerBullet) {
+          const target = bullet.targetId 
+            ? this.enemies.find(e => e.id === bullet.targetId && e.active)
+            : null;
+          
+          if (target) {
+            const dx = target.x - bullet.x;
+            const dy = target.y - bullet.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 0) {
+              const homingSpeed = 400;
+              bullet.velocityX = (dx / dist) * homingSpeed;
+              bullet.velocityY = (dy / dist) * homingSpeed;
+            }
+          } else if (!target && !bullet.targetId) {
+            // No target assigned, target boss if available
+            if (this.boss && this.boss.active) {
+              const dx = this.boss.x - bullet.x;
+              const dy = this.boss.y - bullet.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist > 0) {
+                const homingSpeed = 400;
+                bullet.velocityX = (dx / dist) * homingSpeed;
+                bullet.velocityY = (dy / dist) * homingSpeed;
+              }
+            }
+          }
+          
+          // Update trail
+          if (!bullet.trail) bullet.trail = [];
+          bullet.trail.push({ x: bullet.x, y: bullet.y, alpha: 1 });
+          if (bullet.trail.length > 10) bullet.trail.shift();
+          bullet.trail.forEach(t => t.alpha -= 0.1);
+        }
       
       if (bullet.x < -20 || bullet.x > GAME_WIDTH + 20 ||
           bullet.y < -20 || bullet.y > GAME_HEIGHT + 20) {
@@ -398,11 +490,23 @@ export class GameEngine {
     this.boss.tiltAngle = Math.sin(this.boss.moveTimer * 1.5) * 0.1;
     const healthPercent = this.boss.health / this.boss.maxHealth;
     
+    // Shield cooldown timer - count down before reactivation
+    if (this.boss.shieldCooldownTimer > 0) {
+      this.boss.shieldCooldownTimer -= delta;
+    }
+    
+    // Reactivate shield after cooldown (only in phase 2+ and below 50% health)  
+    if (!this.boss.shieldActive && this.boss.shieldCooldownTimer <= 0 && this.boss.phase >= 2 && healthPercent < 0.5) {
+      this.boss.shieldActive = true;
+      this.boss.shieldHealth = 5;
+      this.boss.shieldMaxHealth = 5;
+    }
+    
     // Phase 2: Activate shield at 50% health
     if (this.boss.phase === 2 && !this.boss.shieldActive && healthPercent < 0.5) {
       this.boss.shieldActive = true;
-      this.boss.shieldHealth = 50;
-      this.boss.shieldMaxHealth = 50;
+      this.boss.shieldHealth = 5; // 5 hits to destroy
+      this.boss.shieldMaxHealth = 5;
     }
     
     // Phase 3: Spawn minions
@@ -411,6 +515,37 @@ export class GameEngine {
       this.spawnBossMinions();
     }
     
+// Charge attack for phase 2+ bosses
+    if (this.boss.phase >= 2 && !this.boss.isCharging && this.boss.chargeTimer <= 0) {
+      const gamePhase = this.gameState.phase;
+      const chargeChance = gamePhase === 2 ? 0.005 : 0.01; // Phase 3 charges more often
+      if (Math.random() < chargeChance) {
+        this.boss.isCharging = true;
+        this.boss.chargeTimer = 1.5; // Charge duration
+        this.boss.chargeTargetX = this.player.x;
+        this.boss.chargeTargetY = this.player.y - 50;
+      }
+    }
+    
+    // Execute charge
+    if (this.boss.isCharging) {
+      const dx = this.boss.chargeTargetX - this.boss.x;
+      const dy = this.boss.chargeTargetY - this.boss.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const chargeSpeed = 350;
+      this.boss.x += (dx / dist) * chargeSpeed * delta;
+      this.boss.y += (dy / dist) * chargeSpeed * delta;
+      this.boss.tiltAngle = Math.atan2(dx, -100) * 0.3; // Tilt towards target
+      
+      this.boss.chargeTimer -= delta;
+      if (this.boss.chargeTimer <= 0 || dist < 30) {
+        this.boss.isCharging = false;
+        this.boss.y = Math.max(this.boss.y, 80); // Return to top area
+        this.boss.chargeTimer = -3; // Cooldown before next charge
+      }
+    } else {
+      this.boss.chargeTimer -= delta;
+    }
     this.boss.x = Math.max(this.boss.width / 2, Math.min(GAME_WIDTH - this.boss.width / 2, this.boss.x));
 
     const attackInterval = this.boss.phase === 1 ? 1.5 : this.boss.phase === 2 ? 1.0 : 0.7;
@@ -541,7 +676,11 @@ export class GameEngine {
         
         if (dist < enemy.width / 2) {
           enemy.health -= bullet.damage;
-          this.callbacks.onEffect?.("hit", bullet.x, bullet.y, { color: 0xffff00 });
+          if (bullet.isHoming) {
+            this.callbacks.onEffect?.("explosion", bullet.x, bullet.y, { type: "small" });
+          } else {
+            this.callbacks.onEffect?.("hit", bullet.x, bullet.y, { color: 0xffff00 });
+          }
           bullet.active = false;
           
           if (enemy.health <= 0) {
@@ -559,7 +698,10 @@ export class GameEngine {
         if (dist < this.boss.width / 2) {
         if (this.boss.shieldActive && this.boss.shieldHealth > 0) {
           this.boss.shieldHealth -= bullet.damage;
-          if (this.boss.shieldHealth <= 0) this.boss.shieldActive = false;
+          if (this.boss.shieldHealth <= 0) {
+            this.boss.shieldActive = false;
+            this.boss.shieldCooldownTimer = 5 + Math.random() * 5; // 5-10 seconds // 7-10 seconds cooldown
+          }
           bullet.active = false;
           return;
         }
@@ -664,7 +806,7 @@ export class GameEngine {
   private collectPowerup(powerup: PowerUp): void {
     switch (powerup.type) {
       case 'weapon':
-        this.player.weaponLevel = Math.min(4, this.player.weaponLevel + 1);
+        this.player.weaponLevel = Math.min(5, this.player.weaponLevel + 1);
         break;
       case 'shield':
         this.player.invulnerable = true;
@@ -752,6 +894,10 @@ export class GameEngine {
       points: config.points,
       tiltAngle: 0,
       targetTilt: 0,
+      isCharging: false,
+      chargeTimer: 0,
+      chargeTargetX: 0,
+      chargeTargetY: 0,
     };
     
     enemy.baseX = enemy.x;
@@ -784,8 +930,13 @@ export class GameEngine {
       shieldMaxHealth: 0,
       vulnerabilityTimer: 0,
       minionSpawnTimer: 0,
+      shieldCooldownTimer: 0,
       tiltAngle: 0,
       targetTilt: 0,
+      isCharging: false,
+      chargeTimer: 0,
+      chargeTargetX: 0,
+      chargeTargetY: 0,
     };
     
     this.bossSpawned = true;
@@ -821,6 +972,10 @@ export class GameEngine {
         points: config.points,
         tiltAngle: 0,
         targetTilt: 0,
+      isCharging: false,
+      chargeTimer: 0,
+      chargeTargetX: 0,
+      chargeTargetY: 0,
         isMinion: true,
         parentBossId: this.boss.id,
       };
@@ -844,7 +999,7 @@ export class GameEngine {
       this.bossSpawned = false;
       this.gameState.currentBoss = null;
       
-      this.player.weaponLevel = Math.min(4, this.player.weaponLevel + 1);
+      this.player.weaponLevel = Math.min(5, this.player.weaponLevel + 1);
       this.player.bombs = Math.min(5, this.player.bombs + 1);
     }
   }

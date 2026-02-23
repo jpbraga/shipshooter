@@ -27,6 +27,10 @@ export default class GameCanvas {
       case "explosion": {
         const t = String(d["type"] || "medium");
         this.createExplosion(x, y, t as "small" | "medium" | "large" | "boss");
+        const size = t === "boss" ? 100 : t === "large" ? 60 : t === "medium" ? 40 : 25;
+        const pieceCount = t === "boss" ? 20 : t === "large" ? 12 : t === "medium" ? 8 : 4;
+        const color = t === "boss" ? 0x660000 : t === "large" ? 0x664400 : 0xcc5500;
+        this.debrisSystem.createWreck({ x, y, size, color, pieceCount });
         break;
       }
       case "hit":
@@ -158,7 +162,8 @@ export default class GameCanvas {
     const phase = this.engine.getGameState().phase;
     
     if (this.parallaxBackground) {
-      this.parallaxBackground.update(delta, phase);
+      const player = this.engine.getPlayer();
+      this.parallaxBackground.update(delta, phase, player.x, player.y);
       this.parallaxBackground.render(this.backgroundShipsGraphic!);
     }
     
